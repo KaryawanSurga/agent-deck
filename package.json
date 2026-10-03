@@ -1,0 +1,53 @@
+{
+  "name": "agent-deck",
+  "version": "0.1.0",
+  "description": "Local mission control for long-running agent jobs: spawn, watch, and stop agent processes from a live web dashboard — zero dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "author": "KaryawanSurga",
+  "homepage": "https://github.com/KaryawanSurga/agent-deck#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KaryawanSurga/agent-deck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KaryawanSurga/agent-deck/issues"
+  },
+  "keywords": [
+    "agents",
+    "orchestration",
+    "mission-control",
+    "dashboard",
+    "process-manager",
+    "ai-agents",
+    "cli",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "agent-deck": "dist/index.js",
+    "agentdeck": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
+  }
+}
