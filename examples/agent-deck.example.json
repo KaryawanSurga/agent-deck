@@ -1,0 +1,20 @@
+{
+  "idleAfterMs": 5000,
+  "agents": {
+    "demo": {
+      "command": "node",
+      "args": ["-e", "let i=0;setInterval(()=>console.log('tick',++i),1000)"],
+      "description": "Demo ticker that prints a line every second."
+    },
+    "tests": {
+      "command": "npm",
+      "args": ["test"],
+      "description": "Run the project test suite."
+    },
+    "commit-helper": {
+      "command": "npx",
+      "args": ["-y", "commitsmith", "--json"],
+      "description": "Suggest a conventional commit from the staged diff."
+    }
+  }
+}
