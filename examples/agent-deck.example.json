@@ -1,5 +1,6 @@
 {
   "idleAfterMs": 5000,
+  "notifyUrl": "http://127.0.0.1:9000/hooks/agent-deck",
   "agents": {
     "demo": {
       "command": "node",
@@ -10,6 +11,12 @@
       "command": "npm",
       "args": ["test"],
       "description": "Run the project test suite."
+    },
+    "repl": {
+      "command": "node",
+      "args": ["-e", "const rl=require('readline').createInterface({input:process.stdin});rl.on('line',(line)=>console.log('echo:',line))"],
+      "pty": true,
+      "description": "Echo console that expects a pseudo-terminal."
     },
     "commit-helper": {
       "command": "npx",
