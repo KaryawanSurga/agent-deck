@@ -1,7 +1,8 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync, openSync, readSync, closeSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, openSync, readSync, closeSync } from "node:fs";
 import path from "node:path";
 
 export type SessionStatus = "running" | "idle" | "exited" | "failed" | "stopped";
+export type SessionTransport = "pipe" | "pty";
 
 export interface Session {
   id: string;
@@ -16,12 +17,14 @@ export interface Session {
   bytes: number;
   lastOutputAt: string;
   stoppedByUser?: boolean;
+  transport?: SessionTransport;
 }
 
 export const DEFAULT_STATE_DIR = ".agent-deck";
 export const MAX_SESSIONS = 100;
 export const MAX_TAIL_BYTES = 512 * 1024;
 export const DEFAULT_TAIL_LINES = 200;
+export const DEFAULT_PRUNE_DAYS = 7;
 
 export class SessionStore {
   readonly rootDir: string;
@@ -103,6 +106,15 @@ export class SessionStore {
     const file = this.logPath(sessionId);
     if (existsSync(file)) {
       writeFileSync(file, "", "utf8");
+    }
+  }
+
+  removeLog(sessionId: string): void {
+    const file = this.logPath(sessionId);
+    try {
+      unlinkSync(file);
+    } catch {
+      // No log to remove.
     }
   }
 }

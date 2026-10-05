@@ -11,11 +11,13 @@ export interface AgentSpec {
   cwd?: string;
   env?: Record<string, string>;
   description?: string;
+  pty?: boolean;
 }
 
 export interface DeckConfig {
   agents: AgentSpec[];
   idleAfterMs: number;
+  notifyUrl?: string;
 }
 
 export function defaultConfig(): DeckConfig {
@@ -73,6 +75,15 @@ function parseAgent(entry: unknown, name: string, source: string): AgentSpec {
   if (typeof entry["description"] === "string" && entry["description"].length > 0) {
     spec.description = entry["description"];
   }
+  const rawPty = entry["pty"];
+  if (rawPty !== undefined) {
+    if (typeof rawPty !== "boolean") {
+      throw new Error(`${source}: agent "${name}" pty must be a boolean`);
+    }
+    if (rawPty) {
+      spec.pty = true;
+    }
+  }
   return spec;
 }
 
@@ -103,7 +114,18 @@ export function parseConfig(raw: unknown, source = "config"): DeckConfig {
     idleAfterMs = rawIdle;
   }
 
-  return { agents, idleAfterMs };
+  const config: DeckConfig = { agents, idleAfterMs };
+  const rawNotify = raw["notifyUrl"];
+  if (rawNotify !== undefined) {
+    if (
+      typeof rawNotify !== "string" ||
+      !(rawNotify.startsWith("http://") || rawNotify.startsWith("https://"))
+    ) {
+      throw new Error(`${source}: "notifyUrl" must be an http(s) URL string`);
+    }
+    config.notifyUrl = rawNotify;
+  }
+  return config;
 }
 
 export function serializeConfig(config: DeckConfig): string {
@@ -119,9 +141,16 @@ export function serializeConfig(config: DeckConfig): string {
     if (agent.description !== undefined) {
       entry["description"] = agent.description;
     }
+    if (agent.pty === true) {
+      entry["pty"] = true;
+    }
     agents[agent.name] = entry;
   }
-  return `${JSON.stringify({ idleAfterMs: config.idleAfterMs, agents }, null, 2)}\n`;
+  const raw: Record<string, unknown> = { idleAfterMs: config.idleAfterMs, agents };
+  if (config.notifyUrl !== undefined) {
+    raw["notifyUrl"] = config.notifyUrl;
+  }
+  return `${JSON.stringify(raw, null, 2)}\n`;
 }
 
 export function resolveConfigPath(cwd: string, explicit?: string): string {
