@@ -12,6 +12,7 @@ describe("renderDashboardHtml", () => {
     expect(html).toContain('id="stop-button"');
     expect(html).toContain("/api/events");
     expect(html).toContain("EventSource");
+    expect(html).toContain('session.transport === "pty"');
   });
 
   it("writes process output through textContent only", () => {

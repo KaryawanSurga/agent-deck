@@ -33,11 +33,13 @@ describe("cli", () => {
   it("prints the version and help", async () => {
     const version = makeIo();
     expect(await main(["--version"], version.io)).toBe(0);
-    expect(version.out()).toContain("0.1.0");
+    expect(version.out()).toContain("0.2.0");
 
     const help = makeIo();
     expect(await main([], help.io)).toBe(0);
     expect(help.out()).toContain("Usage:");
+    expect(help.out()).toContain("prune");
+    expect(help.out()).toContain("export");
   });
 
   it("inits a config and protects it", async () => {
@@ -124,6 +126,42 @@ describe("cli", () => {
       const missing = makeIo();
       expect(await main(["logs", "no-such-session", "--state", stateDir], missing.io)).toBe(1);
       expect(missing.err()).toContain("No log found");
+    } finally {
+      await cleanup(dir);
+    }
+  });
+
+  it("exports sessions and prunes old ones", async () => {
+    const dir = await makeTempDir();
+    try {
+      const stateDir = path.join(dir, ".agent-deck");
+      const configPath = await writeConfig(dir, { ticker: { command: process.execPath, args: [fixture("ticker.mjs")] } });
+
+      const run = makeIo();
+      await main(["run", "ticker", "--config", configPath, "--state", stateDir], run.io);
+      const sessionId = /session (\S+) started/.exec(run.err())?.[1] ?? "";
+
+      const exported = makeIo();
+      expect(await main(["export", sessionId, "--config", configPath, "--state", stateDir], exported.io)).toBe(0);
+      expect(exported.out()).toContain('"status": "exited"');
+      expect(exported.out()).toContain("tick 5");
+
+      const outFile = path.join(dir, "session.json");
+      const toFile = makeIo();
+      expect(
+        await main(["export", sessionId, "--out", outFile, "--config", configPath, "--state", stateDir], toFile.io),
+      ).toBe(0);
+      expect(JSON.parse(await readFile(outFile, "utf8"))).toHaveProperty("session.id", sessionId);
+
+      const missing = makeIo();
+      expect(await main(["export", "nope", "--config", configPath, "--state", stateDir], missing.io)).toBe(1);
+
+      const noId = makeIo();
+      expect(await main(["export", "--config", configPath, "--state", stateDir], noId.io)).toBe(2);
+
+      const pruned = makeIo();
+      expect(await main(["prune", "--days", "7", "--config", configPath, "--state", stateDir], pruned.io)).toBe(0);
+      expect(pruned.out()).toContain("Pruned 0 session(s)");
     } finally {
       await cleanup(dir);
     }

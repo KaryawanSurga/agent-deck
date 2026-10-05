@@ -29,6 +29,26 @@ describe("parseConfig", () => {
     expect(parseConfig({ idleAfterMs: 250, agents: { a: { command: "node" } } }).idleAfterMs).toBe(250);
   });
 
+  it("parses pty agents and notify urls", () => {
+    const config = parseConfig({
+      notifyUrl: "https://hooks.example.test/agent-deck",
+      agents: {
+        repl: { command: "node", pty: true },
+        job: { command: "node", pty: false },
+      },
+    });
+    expect(config.notifyUrl).toBe("https://hooks.example.test/agent-deck");
+    expect(config.agents.find((agent) => agent.name === "repl")?.pty).toBe(true);
+    expect(config.agents.find((agent) => agent.name === "job")?.pty).toBeUndefined();
+  });
+
+  it("rejects invalid pty and notify settings", () => {
+    expect(() => parseConfig({ agents: { a: { command: "node", pty: "yes" } } })).toThrow("pty must be a boolean");
+    expect(() => parseConfig({ agents: { a: { command: "node" } }, notifyUrl: "ftp://nope" })).toThrow(
+      '"notifyUrl" must be an http(s) URL string',
+    );
+  });
+
   it("rejects invalid documents", () => {
     expect(() => parseConfig(null)).toThrow("expected a JSON object");
     expect(() => parseConfig({ agents: [] })).toThrow('"agents" must be an object');
@@ -52,6 +72,16 @@ describe("config serialization", () => {
     const parsed = parseConfig(JSON.parse(serializeConfig(config)));
     expect(parsed.agents[0]?.name).toBe("demo");
     expect(parsed.idleAfterMs).toBe(config.idleAfterMs);
+  });
+
+  it("round-trips pty and notify settings", () => {
+    const config = parseConfig({
+      notifyUrl: "http://127.0.0.1:9999/hook",
+      agents: { repl: { command: "node", pty: true } },
+    });
+    const parsed = parseConfig(JSON.parse(serializeConfig(config)));
+    expect(parsed.notifyUrl).toBe("http://127.0.0.1:9999/hook");
+    expect(parsed.agents[0]?.pty).toBe(true);
   });
 
   it("loads from disk and reports problems", async () => {
