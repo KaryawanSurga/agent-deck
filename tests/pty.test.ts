@@ -35,10 +35,14 @@ describe.skipIf(!ptyAvailable)("spawnPty", () => {
       cwd: process.cwd(),
       env,
     });
-    const code = await new Promise<number | null>((resolve) => {
-      proc.onExit((exitCode) => resolve(exitCode));
-      setTimeout(() => proc.kill(), 150);
+    let requested = false;
+    const exitedAfterKill = await new Promise<boolean>((resolve) => {
+      proc.onExit(() => resolve(requested));
+      setTimeout(() => {
+        requested = true;
+        proc.kill();
+      }, 150);
     });
-    expect(code === null || code !== 0).toBe(true);
+    expect(exitedAfterKill).toBe(true);
   });
 });
