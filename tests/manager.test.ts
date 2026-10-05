@@ -17,7 +17,7 @@ describe("DeckManager", () => {
         }
       });
 
-      const session = manager.start("ticker");
+      const session = await manager.start("ticker");
       await waitFor(() => manager.find(session.id)?.status === "exited");
 
       const finished = manager.find(session.id);
@@ -36,7 +36,7 @@ describe("DeckManager", () => {
     try {
       const config = makeConfig({ failer: nodeCommand("failer.mjs") });
       const { manager, store } = makeManager(config, dir);
-      const session = manager.start("failer");
+      const session = await manager.start("failer");
       await waitFor(() => manager.find(session.id)?.status === "failed");
       expect(manager.find(session.id)?.exitCode).toBe(2);
       expect(store.readTail(session.id, 5)).toContain("boom");
@@ -51,7 +51,7 @@ describe("DeckManager", () => {
     try {
       const config = makeConfig({ sleeper: nodeCommand("sleeper.mjs") }, 150);
       const { manager } = makeManager(config, dir);
-      const session = manager.start("sleeper");
+      const session = await manager.start("sleeper");
 
       await waitFor(() => manager.find(session.id)?.liveStatus === "idle");
       expect(manager.stop(session.id)).toBe(true);
@@ -68,7 +68,7 @@ describe("DeckManager", () => {
     try {
       const config = makeConfig({ ticker: nodeCommand("ticker.mjs") });
       const { manager } = makeManager(config, dir);
-      expect(() => manager.start("nope")).toThrow('Unknown agent "nope"');
+      await expect(manager.start("nope")).rejects.toThrow('Unknown agent "nope"');
       manager.close();
     } finally {
       await cleanup(dir);
@@ -108,7 +108,7 @@ describe("DeckManager", () => {
     try {
       const config = makeConfig({ sleeper: nodeCommand("sleeper.mjs") });
       const { manager } = makeManager(config, dir);
-      const session = manager.start("sleeper");
+      const session = await manager.start("sleeper");
       await waitFor(() => manager.find(session.id) !== undefined);
       manager.close();
       await waitFor(() => manager.find(session.id)?.status === "stopped");
