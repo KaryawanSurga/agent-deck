@@ -6,7 +6,9 @@
 
 **Local mission control for long-running agent jobs.**
 
-Agents run for minutes or hours. Agent Deck gives you a live dashboard for them: start configured agents, watch their output stream in real time, see status at a glance (running, idle, exited, failed, stopped), and stop them when needed. Zero runtime dependencies — Node's HTTP, child process, and file system modules only.
+Agents run for minutes or hours. Agent Deck gives you a live dashboard for them: start configured agents, watch their output stream in real time, see status at a glance (running, idle, exited, failed, stopped), and stop them when needed. Optional PTY sessions let interactive tools print like they would in a terminal, and webhook notifications tell you when a run fails — even when nobody is watching the dashboard.
+
+Zero required dependencies — Node's HTTP, child process, and file system modules only. PTY sessions use an optional native package and fail with a clear message when it is unavailable.
 
 Second flagship in the KaryawanSurga toolbox: the [TokenSaver family](https://github.com/KaryawanSurga/tokensaver-plugin) keeps agents cheap, and Agent Deck keeps them visible.
 
@@ -24,6 +26,7 @@ Second flagship in the KaryawanSurga toolbox: the [TokenSaver family](https://gi
 ```sh
 npx -y agent-deck init          # writes agent-deck.json with a demo agent
 npx -y agent-deck run demo      # stream an agent's output here
+npx -y agent-deck run demo --pty # optional: run it through a pseudo-terminal
 npx -y agent-deck serve         # live dashboard at http://127.0.0.1:8787
 ```
 
@@ -36,6 +39,7 @@ Dashboard features: agent list with start buttons, session list with status dots
 ```json
 {
   "idleAfterMs": 5000,
+  "notifyUrl": "http://127.0.0.1:9000/hooks/agent-deck",
   "agents": {
     "docs": {
       "command": "npx",
@@ -47,12 +51,18 @@ Dashboard features: agent list with start buttons, session list with status dots
       "command": "npm",
       "args": ["test"],
       "description": "Full test suite"
+    },
+    "repl": {
+      "command": "npx",
+      "args": ["-y", "some-interactive-agent"],
+      "pty": true,
+      "description": "Interactive agent that expects a terminal"
     }
   }
 }
 ```
 
-Agents are ordinary commands. Anything that prints to stdout/stderr and eventually exits works — coding agents in print mode, test suites, data jobs, watchers.
+Agents are ordinary commands. Anything that prints to stdout/stderr and eventually exits works — coding agents in print mode, test suites, data jobs, watchers. Set `"pty": true` (or pass `--pty` to `run`) for tools that expect a pseudo-terminal, and set `notifyUrl` to receive a POST with the session summary whenever a run reaches a terminal state.
 
 ## CLI
 
@@ -60,8 +70,10 @@ Agents are ordinary commands. Anything that prints to stdout/stderr and eventual
 | --- | --- |
 | `agent-deck init [--force]` | Write a starter config. |
 | `agent-deck list [--json]` | Show agents and recent sessions with live status. |
-| `agent-deck run <agent>` | Start an agent and stream its output here; exits with the agent's outcome. |
+| `agent-deck run <agent> [--pty]` | Start an agent and stream its output here; exits with the agent's outcome. |
 | `agent-deck logs <session-id> [--tail <n>]` | Print a session's log tail. |
+| `agent-deck export <session-id> [--out <file>]` | Print a session record and its log as JSON. |
+| `agent-deck prune [--days <n>]` | Delete finished sessions and logs older than N days (default 7). |
 | `agent-deck serve [--port <n>] [--host <h>]` | Live dashboard and API. |
 
 Global options: `--config <path>` (default `./agent-deck.json`), `--state <dir>` (default `./.agent-deck`).
@@ -93,24 +105,23 @@ State lives in `.agent-deck/` (sessions index plus one log file per session). Se
 
 ## Design principles
 
-- **Zero dependencies**: no framework, no WebSocket library — SSE over Node's HTTP server.
+- **Zero required dependencies**: no framework, no WebSocket library — SSE over Node's HTTP server. PTY is optional and isolated behind one module.
 - **Local-only**: binds `127.0.0.1` by default; no telemetry, no accounts.
-- **Bounded**: log tails are capped, session history is capped at 100 runs.
-- **Honest**: spawn errors, non-zero exits, and recovered sessions are all reported.
+- **Bounded**: log tails are capped, session history is capped at 100 runs, and `prune` keeps the state directory tidy.
+- **Honest**: spawn errors, non-zero exits, recovered sessions, and failed webhook deliveries are all reported.
 - **Boring on purpose**: JSON config, plain files, readable code.
 
-## Limitations (v0.1.0)
+## Limitations (v0.2.0)
 
-- No PTY: interactive full-screen TUIs (an agent REPL) will not render. Print-mode agents, tests, and jobs are the target. PTY support is on the roadmap.
+- PTY sessions need the optional `@homebridge/node-pty-prebuilt-multiarch` package. Without it, `pty: true` agents fail with a clear message and pipe agents keep working. PTY output includes terminal control sequences; the dashboard shows the raw stream.
 - Single machine, single process. `stop` works for sessions owned by the running dashboard; a standalone `run` owns its session.
 - No authentication. Keep the default loopback bind or provide your own proxy.
 
 ## Roadmap
 
-- PTY-backed sessions for interactive agents.
 - Worktree-aware agents: create a git worktree per session.
 - Task queue with dependencies and quality gates.
-- Notifications when a job fails.
+- Desktop notifications and retrying webhook delivery.
 - Multi-machine agents over SSH.
 
 ## Development
@@ -122,7 +133,9 @@ npm run build
 npm test
 ```
 
-The suite covers config parsing, the session store, spawn/exit/stop flows against real fixture processes, idle detection, the dashboard API, Server-Sent Events, and the CLI.
+The suite covers config parsing, the session store, spawn/exit/stop flows against real fixture processes, both transports, idle detection, notifications, pruning, export, the dashboard API, Server-Sent Events, and the CLI.
+
+Note for npm >= 12: the optional PTY package runs install scripts. This repository ships an `allowScripts` entry for it in `package.json`; if your npm still blocks the script, approve it once with `npm install-scripts approve @homebridge/node-pty-prebuilt-multiarch`.
 
 ## License
 
