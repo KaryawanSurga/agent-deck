@@ -7,10 +7,11 @@ import {
   serializeConfig,
 } from "./core/config.js";
 import { DeckManager } from "./core/manager.js";
-import { SessionStore, DEFAULT_TAIL_LINES } from "./core/store.js";
+import { SessionStore, DEFAULT_PRUNE_DAYS, DEFAULT_TAIL_LINES } from "./core/store.js";
+import type { SessionTransport } from "./core/store.js";
 import { startDeckServer, DEFAULT_HOST, DEFAULT_PORT } from "./server.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 
 export interface CliIo {
   stdout: (text: string) => void;
@@ -25,8 +26,10 @@ Local mission control for long-running agent jobs.
 Usage:
   agent-deck init [--force] [--config <path>]
   agent-deck list [--json] [--config <path>]
-  agent-deck run <agent> [--config <path>]
+  agent-deck run <agent> [--pty] [--config <path>]
   agent-deck logs <session-id> [--tail <n>] [--state <dir>]
+  agent-deck export <session-id> [--out <path>] [--config <path>]
+  agent-deck prune [--days <n>] [--config <path>]
   agent-deck serve [--port <n>] [--host <h>] [--config <path>]
   agent-deck --help | --version
 
@@ -35,6 +38,8 @@ Commands:
   list    Show configured agents and recent sessions
   run     Start an agent and stream its output here
   logs    Print a session's log tail
+  export  Print a session with its log as JSON
+  prune   Delete sessions and logs older than N days
   serve   Start the live dashboard in a browser
 
 Options:
@@ -43,6 +48,9 @@ Options:
   --port <n>        Dashboard port (default ${DEFAULT_PORT})
   --host <h>        Dashboard host (default ${DEFAULT_HOST})
   --tail <n>        Lines for logs (default ${DEFAULT_TAIL_LINES})
+  --days <n>        Prune age in days (default ${DEFAULT_PRUNE_DAYS})
+  --out <path>      Write export JSON to a file
+  --pty             Force a pty session for run
   --json            Machine-readable output for list
   --force           Overwrite the config on init
   -h, --help        Show this help
@@ -92,8 +100,11 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
       port: { type: "string" },
       host: { type: "string" },
       tail: { type: "string" },
+      days: { type: "string" },
+      out: { type: "string" },
       json: { type: "boolean" },
       force: { type: "boolean" },
+      pty: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },
@@ -111,7 +122,7 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
     return 0;
   }
 
-  if (!["init", "list", "run", "logs", "serve"].includes(command)) {
+  if (!["init", "list", "run", "logs", "serve", "prune", "export"].includes(command)) {
     io.stderr(`Unknown command: ${command}`);
     io.stderr("Run agent-deck --help for usage.");
     return 2;
@@ -180,7 +191,9 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
       return 2;
     }
 
-    const manager = new DeckManager(config, store);
+    const manager = new DeckManager(config, store, undefined, {
+      onNotifyError: (message) => io.stderr(message),
+    });
     const instance = await startDeckServer({ manager, config, host, port });
     io.stdout(`Agent Deck dashboard: ${instance.url}`);
     io.stdout(`  health: ${instance.url}/health`);
@@ -237,10 +250,60 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
     return 0;
   }
 
+  if (command === "prune") {
+    let days: number;
+    try {
+      days = parsePositiveInt(values["days"], "--days", DEFAULT_PRUNE_DAYS);
+    } catch (error) {
+      io.stderr(error instanceof Error ? error.message : String(error));
+      return 2;
+    }
+    const manager = new DeckManager(config, store);
+    const removed = manager.prune(days);
+    io.stdout(`Pruned ${removed.length} session(s) older than ${days} day(s).`);
+    for (const id of removed) {
+      io.stdout(`  ${id}`);
+    }
+    return 0;
+  }
+
+  if (command === "export") {
+    const sessionId = positionals[1];
+    if (sessionId === undefined) {
+      io.stderr("export requires a session id");
+      return 2;
+    }
+    const manager = new DeckManager(config, store);
+    let payload;
+    try {
+      payload = manager.export(sessionId);
+    } catch (error) {
+      io.stderr(error instanceof Error ? error.message : String(error));
+      return 1;
+    }
+    const text = `${JSON.stringify(payload, null, 2)}\n`;
+    const outPath = typeof values["out"] === "string" ? values["out"] : undefined;
+    if (outPath === undefined) {
+      io.stdout(text);
+      return 0;
+    }
+    try {
+      await fs.writeFile(outPath, text, "utf8");
+      io.stdout(`Wrote ${outPath}`);
+      return 0;
+    } catch (error) {
+      io.stderr(error instanceof Error ? error.message : String(error));
+      return 1;
+    }
+  }
+
   if (command === "run") {
     const agentName = positionals[1] as string;
-    const manager = new DeckManager(config, store);
-    return await new Promise<number>((resolve) => {
+    const transport: SessionTransport | undefined = values["pty"] === true ? "pty" : undefined;
+    const manager = new DeckManager(config, store, undefined, {
+      onNotifyError: (message) => io.stderr(message),
+    });
+    return await new Promise<number>(async (resolve) => {
       let targetId: string | undefined;
       let finished = false;
 
@@ -277,7 +340,7 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
       });
 
       try {
-        const session = manager.start(agentName);
+        const session = await manager.start(agentName, { transport });
         targetId = session.id;
         io.stderr(`session ${session.id} started`);
       } catch (error) {
