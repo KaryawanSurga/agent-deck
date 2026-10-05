@@ -103,7 +103,7 @@ export async function startDeckServer(options: DeckServerOptions): Promise<DeckS
           return;
         }
         try {
-          const session = manager.start(agent);
+          const session = await manager.start(agent);
           sendJson(response, 201, { session });
         } catch (error) {
           sendJson(response, 404, { error: error instanceof Error ? error.message : String(error) });
