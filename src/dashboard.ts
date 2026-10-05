@@ -137,7 +137,7 @@ function renderSessions() {
     left.append(statusDot(session.liveStatus), document.createTextNode(" " + session.agent));
     const meta = document.createElement("span");
     meta.className = "meta";
-    meta.textContent = session.liveStatus + " · " + new Date(session.startedAt).toLocaleTimeString();
+    meta.textContent = (session.transport === "pty" ? "pty · " : "") + session.liveStatus + " · " + new Date(session.startedAt).toLocaleTimeString();
     left.append(document.createElement("br"), meta);
 
     const stop = document.createElement("button");
@@ -159,7 +159,7 @@ function renderSelectedHeader() {
   const session = sessions.find((entry) => entry.id === selectedId);
   $("selected-dot").className = "dot" + (session ? " " + session.liveStatus : "");
   $("selected-name").textContent = session ? session.agent + " · " + session.id : "no session selected";
-  $("selected-meta").textContent = session ? session.command.join(" ") : "";
+  $("selected-meta").textContent = session ? (session.transport === "pty" ? "pty · " : "") + session.command.join(" ") : "";
   $("stop-button").hidden = !session || (session.liveStatus !== "running" && session.liveStatus !== "idle");
 }
 
