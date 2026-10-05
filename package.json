@@ -1,7 +1,7 @@
 {
   "name": "agent-deck",
-  "version": "0.1.0",
-  "description": "Local mission control for long-running agent jobs: spawn, watch, and stop agent processes from a live web dashboard — zero dependencies.",
+  "version": "0.2.0",
+  "description": "Local mission control for long-running agent jobs: spawn, watch, and stop agent processes from a live web dashboard, with optional PTY sessions and webhook notifications.",
   "type": "module",
   "license": "MIT",
   "author": "KaryawanSurga",
@@ -44,6 +44,12 @@
     "test:watch": "vitest",
     "start": "node dist/index.js",
     "prepublishOnly": "npm run build"
+  },
+  "optionalDependencies": {
+    "@homebridge/node-pty-prebuilt-multiarch": "^0.14.1"
+  },
+  "allowScripts": {
+    "@homebridge/node-pty-prebuilt-multiarch@0.14.1": true
   },
   "devDependencies": {
     "@types/node": "^22.20.3",
